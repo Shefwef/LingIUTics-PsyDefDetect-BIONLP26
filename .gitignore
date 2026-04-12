@@ -1,0 +1,26 @@
+# Project artifacts and logs
+*.log
+logs/
+
+# Python cache / environment
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+.venv/
+venv/
+
+# Model checkpoints and large binary artifacts
+checkpoints/
+**/checkpoints/
+**/corrupt_checkpoints/
+*.pt
+*.pth
+*.bin
+*.ckpt
+*.safetensors
+*.onnx
+*.h5
+
+# Training outputs
+results/
+**/results/
