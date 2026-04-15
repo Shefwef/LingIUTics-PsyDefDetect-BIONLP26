@@ -1,0 +1,28 @@
+# Pipeline: Qwen3-8B `v2decode`
+
+This document details the pipeline for the `v2decode` variant (scoring 0.3548 F1). This iteration was our first structurally sound, leakage-safe model, relying heavily on post-processing rather than ensembling to achieve its score.
+
+## 1. Data Preparation
+* **Data Leakage Fix:** This iteration marked the transition to **`StratifiedGroupKFold`** cross-validation. By grouping on dialogue IDs, we ensured that multiple turns or synthetic augmentations of the same conversation were strictly segregated into the same fold (either train or validation, never split), eliminating the data leakage present in the baseline.
+* **Prompts:** Followed the standard format of concatenating up to 30 turns of `SPEAKER:` / `SEEKER:` interactions.
+
+## 2. Model Architecture & Training
+* **Base Model:** `Qwen/Qwen3-8B`
+* **Architecture:** 4-bit QLoRA with rank $r=64$, targeting all linear projection layers.
+* **Loss:** Used **inverse-square-root class weighting** to combat the severe class imbalance (majority Class 7).
+* **Script Used:** `scripts/train_qwen3_8b_lora_cv_grouped_clean.py`
+* **Difference from Baseline:** The primary difference during training was the `Grouped` fold constraint, meaning the model was forced to truly generalize to unseen dialogue structures rather than memorizing syntactically similar segments.
+
+## 3. Inference
+* **Out-of-Fold (OOF) & Test:** The script generated 5-fold cross-validated probabilities for the test set. All fold probabilities were simple-averaged.
+* **Output Path:** `outputs/qwen3_8b_rrk3_gpu1_grouped_clean`.
+* **No Ensembling:** Only a single set of model weights (one standard seed) was utilized.
+
+## 4. Post-Processing ("Bias Tuning")
+Because the Grouped-CV strictly prevented over-fitting, the raw model's minority class recall was lower than desired. To compensate, this variant utilized an aggressive post-processing script:
+* **Probability Shifting:** Positive scalar bonuses were manually injected into the test-set probability distributions for the minority classes.
+* **Objective:** The goal was to force the argmax function to flip border-line Class 7 predictions into minority classes (like Class 1 or 6) to boost the macroscopic F1 score.
+
+## 5. Result
+* **Leaderboard Score:** 0.5843 Accuracy, 0.4430 Precision, 0.3015 Recall, **0.3548 F1**.
+* **Verdict:** The grouped cross-validation successfully stabilized the model's real-world predictive power. The bias-tuning improved the LB F1 to 0.3548, but the approach was highly volatile. Shifting the distribution manually on a single model proved unstable on the hidden leaderboard set, prompting the later shift to multi-seed ensembling (`seedAblend`).
